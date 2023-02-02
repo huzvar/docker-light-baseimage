@@ -41,7 +41,7 @@ import (
                 }
             },
             docker.#Run & {
-                entrypoint: ["/bin/bash", "-c", "packages-index-update && packages-install-clean && [....]"]
+                entrypoint: ["/bin/bash", "-c", "packages-index-update && packages-install-clean && [...]"]
             },
             docker.#Copy & {
                 contents: services

@@ -38,7 +38,7 @@ def install(script):
     if not os.access(script, os.X_OK):
         chmod_x(script)
 
-    print("Running %s..." % script)
+    print("Running %s ..." % script)
     subprocess.run(script, shell=True)
 
     print("Remove %s" % script)
@@ -70,24 +70,24 @@ def print_write_error_helper_and_exit():
     exit(1)
 
 
-print("Running install-services...")
+print("Running install-services ...")
 
 # Run /container/services/install.sh
 install(os.path.join(SERVICE_DIR, INSTALL_FILENAME))
 
 # Run install.sh scripts of /container/services/*
-# Link startup.sh scripts of /container/services/* to /container/run/startup/*
-# Link process.sh scripts of /container/services/* to /container/run/process/*/run
-# Link finish.sh scripts of /container/services/* to /container/run/finish/*
+# Link startup.sh scripts of /container/services/* to /container/entrypoint/startup/*/run
+# Link process.sh scripts of /container/services/* to /container/entrypoint/process/*/run
+# Link finish.sh scripts of /container/services/* to /container/entrypoint/finish/*/run
 for service in sorted(os.listdir(SERVICE_DIR)):
     service_directory = os.path.join(SERVICE_DIR, service)
 
     install(os.path.join(service_directory, INSTALL_FILENAME))
 
     scripts_to_link = {
-        os.path.join(service_directory, STARTUP_FILENAME): os.path.join(ENTRYPOINT_STARTUP_DIR, service),
+        os.path.join(service_directory, STARTUP_FILENAME): os.path.join(ENTRYPOINT_STARTUP_DIR, service, "run"),
         os.path.join(service_directory, PROCESS_FILENAME): os.path.join(ENTRYPOINT_PROCESS_DIR, service, "run"),
-        os.path.join(service_directory, FINISH_FILENAME): os.path.join(ENTRYPOINT_FINISH_DIR, service)
+        os.path.join(service_directory, FINISH_FILENAME): os.path.join(ENTRYPOINT_FINISH_DIR, service, "run")
     }
 
     for script, dest in scripts_to_link.items():
@@ -105,13 +105,8 @@ for ENTRYPOINT_DIR in (ENTRYPOINT_STARTUP_DIR, ENTRYPOINT_PROCESS_DIR, ENTRYPOIN
 
                 if not os.path.exists(real_path):
                     try:
-                        # Special case for process script that are in a subdirectory named after the service name in ENTRYPOINT_PROCESS_DIR
-                        # we remove the subdirectory.
-                        if(file.startswith(ENTRYPOINT_PROCESS_DIR)):
-                            file = os.path.dirname(file)
-
-                        print("Remove %s" % file)
-                        os.remove(file)
+                        print("Remove %s" % subdir)
+                        os.remove(subdir)
 
                     except OSError as e:
                         print("Error: failed to remove %s: %s" %

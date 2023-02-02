@@ -7,8 +7,7 @@ ln -s /container/tools/* /sbin/
 # Create image default directories.
 mkdir -p /container/environment \
          /container/services \
-         /container/entrypoint /container/entrypoint/startup /container/entrypoint/process /container/entrypoint/finish \
-         /container/var /container/var/state
+         /container/entrypoint /container/entrypoint/startup /container/entrypoint/process /container/entrypoint/finish
 
 # Install required packages.
 packages-index-update

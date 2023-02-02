@@ -7,8 +7,8 @@
 	delaycompress
 	compress
 	postrotate
-		if [ -f /var/run/syslog-ng.pid ]; then
-			kill -HUP `cat /var/run/syslog-ng.pid`
+		if [ -f /run/syslog-ng.pid ]; then
+			kill -HUP `cat /run/syslog-ng.pid`
 		fi
 	endscript
 }
@@ -35,8 +35,8 @@
 	delaycompress
 	sharedscripts
 	postrotate
-		if [ -f /var/run/syslog-ng.pid ]; then
-			kill -HUP `cat /var/run/syslog-ng.pid`
+		if [ -f /run/syslog-ng.pid ]; then
+			kill -HUP `cat /run/syslog-ng.pid`
 		fi
 	endscript
 }

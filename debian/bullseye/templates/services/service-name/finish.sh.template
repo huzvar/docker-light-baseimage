@@ -4,4 +4,4 @@
 # print commands and their arguments as they are executed
 log-helper level eq trace && set -x
 
-echo "${SERVICE_NAME}: process ended..."
+echo "${SERVICE_NAME}: process ended ..."

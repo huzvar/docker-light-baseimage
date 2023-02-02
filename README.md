@@ -1,247 +1,25 @@
-# osixia/light-baseimage:2.0.0 🐳✨🌴
+# osixia/baseimage:2.0.0 🐳✨🌴
 
 [docker hub]: https://hub.docker.com/r/osixia/light-baseimage
-[github]: https://github.com/osixia/docker-light-baseimage
+[github]: https://github.com/osixia/container-baseimage
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/osixia/light-baseimage.svg?style=flat-square)][docker hub]
 [![Docker Stars](https://img.shields.io/docker/stars/osixia/light-baseimage.svg?style=flat-square)][docker hub]
-[![GitHub Stars](https://img.shields.io/github/stars/osixia/docker-light-baseimage?label=github%20stars&style=flat-square)][github]
-[![Contributors](https://img.shields.io/github/contributors/osixia/docker-light-baseimage?style=flat-square)](https://github.com/osixia/docker-light-baseimage/graphs/contributors)
+[![GitHub Stars](https://img.shields.io/github/stars/osixia/container-baseimage?label=github%20stars&style=flat-square)][github]
+[![Contributors](https://img.shields.io/github/contributors/osixia/container-baseimage?style=flat-square)](https://github.com/osixia/container-baseimage/graphs/contributors)
 
-Debian 11 (Bullseye) and Alpine 3.15 container base images to build reliable images quickly.
+Debian 11 (Bullseye) and Alpine 3.16 container base images to build reliable images quickly.
 
 **This image provide a simple opinionated solution to build single or multiprocess images with minimum of layers and an optimized build.**
 
 It helps speeding up image development and CI/CD pipelines by providing:
 
- - Greats building tools to **minimize the image number of layers and make best use of image cache**.
- - A nice init process as image entrypoint that add **helpfull extensions and options to fastly run and debug containers**.
- - Simple way to create **multiprocess images** if needed.
-
-## ⚡ Quick Start
-
-Run the following command to generate example templates and start building an image based on light-baseimage:
-
-```
-# Debian
-docker run --rm osixia/light-baseimage:2.0.0 --generate dockerfile
-```
-
-```
-# Alpine
-docker run --rm osixia/light-baseimage:2.0.0-alpine --generate dockerfile
-```
-
-Replace `--generate` with `--generate-multiprocess` to get a minimal multiprocess example templates and replace `dockerfile` with `dagger.io` to get a [dagger.io](https://dagger.io) example.
-
-## 🗂 Entrypoint options
-
-```
-docker run --rm osixia/light-baseimage:2.0.0 --help
-```
-
-```
-usage:  [-h] [-v] [-gen {dockerfile,dagger.io}] [-gmu {dockerfile,dagger.io}]
-        [-gse NAME] [-gsa NAME] [-e] [-s] [-p] [-f]
-        [-o {startup,process,finish}] [-xps COMMAND] [-xpp COMMAND]
-        [-xpf COMMAND] [-xpe COMMAND] [-w] [-d [EXTRA PACKAGE ...]] [-k] [-a]
-        [-j] [-l {none,error,warning,info,debug,trace}]
-        [MAIN_COMMAND ...]
-
-container image: osixia/light-baseimage:2.0.0
-
-positional arguments:
-  MAIN_COMMAND          the main command to run in addition of container
-                        processes, default: /bin/bash if the container have no
-                        process, none otherwise
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -v, --version         print container image version
-
-generator:
-  -gen {dockerfile,dagger.io}, --generate {dockerfile,dagger.io}
-                        generate base templates for single process image
-  -gmu {dockerfile,dagger.io}, --generate-multiprocess {dockerfile,dagger.io}
-                        generate base templates for multiprocess image
-  -gse NAME, --generate-service NAME
-                        generate NAME service templates
-  -gsa NAME, --generate-service-available NAME
-                        generate NAME service available templates
-
-environment variables:
-  -e, --skip-env-files  skip getting environment variables values from .env
-                        file(s)
-
-container lifecycle:
-  -s, --skip-startup    skip running pre-startup-cmd and service(s) startup.sh
-                        script(s)
-  -p, --skip-process    skip running pre-process-cmd and service(s) process.sh
-                        script(s)
-  -f, --skip-finish     skip running pre-finish-cmd and service(s) finish.sh
-                        script(s)
-  -o {startup,process,finish}, --run-only {startup,process,finish}
-                        run only this file type and ignore others
-
-commands hooks:
-  -xps COMMAND, --pre-startup-cmd COMMAND
-                        run COMMAND before startup file(s)
-  -xpp COMMAND, --pre-process-cmd COMMAND
-                        run COMMAND before process file(s)
-  -xpf COMMAND, --pre-finish-cmd COMMAND
-                        run COMMAND before finish file(s)
-  -xpe COMMAND, --pre-exit-cmd COMMAND
-                        run COMMAND before container exits
-
-ci/cd:
-  -w, --unsecure-fast-write
-                        disable fsync and friends with eatmydata LD_PRELOAD
-                        library
-
-debugging:
-  -d [EXTRA PACKAGE ...], --debug [EXTRA PACKAGE ...]
-                        set log level to debug and install debug tools (curl
-                        less procps psmisc strace vim) with optional extra
-                        packages passed in argument
-  -k, --no-kill-all-on-exit
-                        don't kill all processes on the system upon exiting
-  -a, --keep-alive      keep alive container after all processes have exited
-
-logging:
-  -j, --logjson         set log format to json
-  -l {none,error,warning,info,debug,trace}, --loglevel {none,error,warning,info,debug,trace}
-                        set log level, default: info
-
-Built with osixia/light-baseimage (https://github.com/osixia/docker-light-baseimage) 🐳✨🌴
-```
-
-## 🍹 First image in 2 minutes
-Generate single process image templates in the **light-baseimage-example** directory
-```
-docker run --rm --volume $(pwd)/light-baseimage-example:/container/var/generator \
-osixia/light-baseimage:2.0.0 --generate dockerfile
-```
-
-List generated directories and files in **light-baseimage-example** directory
-```
-tree -a light-baseimage-example
-```
-
-```
-light-baseimage-example
-├── Dockerfile
-├── environment
-│   └── .env
-└── services
-    └── my-service
-        ├── finish.sh
-        ├── install.sh
-        ├── process.sh
-        └── startup.sh
-```
-
-Edit the **Dockerfile** to remove the lines related to packages installation  
-```
-vim light-baseimage-example/Dockerfile
-```
-
-```
-FROM osixia/light-baseimage:2.0.0
-
-# Uncomment to add container environment variables used by generator
-# and provide templates to extend your image
-# ARG IMAGE_NAME=my-compagny
-# ARG IMAGE_TAG=1.0.0
-# ENV CONTAINER_IMAGE_NAME=${IMAGE_NAME} \
-#     CONTAINER_IMAGE_TAG=${IMAGE_TAG}
-
-RUN packages-index-update \     <--- Remove this line
-    && packages-install-clean \ <--- Remove this line
-        [....]                  <--- Remove this line
-
-COPY services /container/services
-
-RUN install-services
-
-COPY environment /container/environment/00-default
-```
-Build the image **example/my-image:develop** using files in the **light-baseimage-example** directory
-```
-docker build -t example/my-image:develop ./light-baseimage-example
-```
-Run **example/my-image:develop** image
-```
-docker run example/my-image:develop
-```
-```
-*** 2022-06-16T18:02:20.925194 |  INFO   | CONTAINER_LOG_LEVEL=3 (info) Increase log level to "debug" or "trace" to dump all container environment variables.
-*** 2022-06-16T18:02:20.925230 |  INFO   | CONTAINER_LOG_FORMAT=CONSOLE Run container with command argument --logjson to switch to JSON log format.
-*** 2022-06-16T18:02:20.944133 |  INFO   | Loading environment file /container/environment/00-default/.env...
-*** 2022-06-16T18:02:20.944680 |  INFO   | Running /container/entrypoint/startup/my-service...
-my-service: Doing some container first start setup...
-my-service: Doing some others container start setup...
-my-service: EXAMPLE_ENV_VAR=Hello :)...
-*** 2022-06-16T18:02:20.949115 |  INFO   | Running /container/entrypoint/process/my-service/run...
-my-service: Just going to sleep for a long time...
-
-[ press ctrl+c to stop process ]
-
-*** 2022-06-16T18:02:23.589513 |  INFO   | Running /container/entrypoint/finish/my-service...
-my-service: process ended...
-*** 2022-06-16T18:02:23.600556 |  INFO   | Killing all processes...
-```
-
-## 📄 Documentation
-
-⚠ 2.0.0 release is out. Check the [1.x.x to 2.0.0 Migration Guide.]()
-
-See full documentation and complete feature list on osixia/light-baseimage [documentation website.](https://opensource.osixia.net/containers/images/light-baseimage)
-
-Or for the more adventurous go directly to the [🎨 examples](docs/examples).
-
-## ♥ Contributing
-
-If you find this project useful here's how you can help:
-
-- Send a pull request with new features and bug fixes.
-- Help new users with [issues](https://github.com/osixia/docker-light-baseimage/issues) they may encounter.
-- Support the development of this image and star [this repo][github] and the image [docker hub repository.][docker hub]
-
-## 🔓 License
-
-This project is licensed under the terms of the MIT license. See [LICENSE](LICENSE) file for more information.
-
-## 💥 Changelog
-
-Please refer to: [CHANGELOG.md](CHANGELOG.md)
-
-
-
-
-
-# osixia/light-baseimage ✨🌴
-
-![Docker Pulls](https://img.shields.io/docker/pulls/osixia/light-baseimage.svg?style=flat-square)
-![Docker Stars](https://img.shields.io/docker/stars/osixia/light-baseimage.svg?style=flat-square)
-![Docker Image Size](https://img.shields.io/docker/image-size/osixia/light-baseimage?style=flat-square)
-![Contributors](https://img.shields.io/github/contributors/osixia/docker-light-baseimage?style=flat-square)
-
-A **Debian 11 (Bullseye)** based docker image to build reliable image quickly. This image provide a simple opinionated solution to build multiple or single process image with minimum of layers and an optimized build.
-
-The aims of this image is to be used as a base for your own Docker images. It's base on the awesome work of: [phusion/baseimage-docker](https://github.com/phusion/baseimage-docker)
-
-```
-docker run osixia/light-baseimage:2.0.0 --help
-```
-
-Also available based on Alpine : [Documentation](https://github.com/osixia/docker-light-baseimage/tree/alpine)
-
-```
-docker run osixia/light-baseimage:alpine-2.0.0 --help
-```
+ - Greats building tools to minimize the image number of layers and make best use of image cache.
+ - A nice init process as image entrypoint that add helpfull extensions and options to fastly run and debug containers.
+ - Simple way to create multiprocess images if needed.
 
 Table of Contents
-- [osixia/light-baseimage:2.0.0 🐳✨🌴](#osixialight-baseimage200-)
+- [osixia/baseimage:2.0.0 🐳✨🌴](#osixiabaseimage200-)
   - [⚡ Quick Start](#-quick-start)
   - [🗂 Entrypoint options](#-entrypoint-options)
   - [🍹 First image in 2 minutes](#-first-image-in-2-minutes)
@@ -297,6 +75,245 @@ Table of Contents
       - [log-helper](#log-helper)
     - [Tests](#tests)
   - [Changelog](#changelog)
+
+## ⚡ Quick Start
+
+Run the following command to generate example templates and start building an image based on osixia/baseimage:
+
+```
+# Debian
+docker run --rm osixia/baseimage:2.0.0 --generate dockerfile
+```
+
+```
+# Alpine
+docker run --rm osixia/baseimage:2.0.0-alpine --generate dockerfile
+```
+
+Replace `--generate` with `--generate-multiprocess` to get a minimal multiprocess example templates and replace `dockerfile` with `dagger.io` to get a [dagger.io](https://dagger.io) example.
+
+## 🗂 Entrypoint options
+
+```
+docker run --rm osixia/baseimage:2.0.0 --help
+```
+
+```
+usage:  [-h] [-v] [-gen {dockerfile,dagger.io}] [-gmu {dockerfile,dagger.io}]
+        [-gse NAME] [-gsa NAME] [-e] [-s] [-p] [-f]
+        [-o {startup,process,finish}] [-xps COMMAND] [-xpp COMMAND]
+        [-xpf COMMAND] [-xpe COMMAND] [-w] [-d [EXTRA PACKAGE ...]] [-k] [-a]
+        [-j] [-l {none,error,warning,info,debug,trace}]
+        [MAIN_COMMAND ...]
+
+osixia/baseimage:2.0.0
+
+positional arguments:
+  MAIN_COMMAND          the main command to run in addition of container
+                        processes, default: /bin/bash if the container have no
+                        process, none otherwise
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -v, --version         print container image version
+
+generator:
+  -gen {dockerfile,dagger.io}, --generate {dockerfile,dagger.io}
+                        generate base templates for single process image
+  -gmu {dockerfile,dagger.io}, --generate-multiprocess {dockerfile,dagger.io}
+                        generate base templates for multiprocess image
+  -gse NAME, --generate-service NAME
+                        generate NAME service templates
+  -gsa NAME, --generate-service-available NAME
+                        generate NAME service available templates
+
+environment variables:
+  -e, --skip-env-files  skip getting environment variables values from .env
+                        file(s)
+
+container lifecycle:
+  -s, --skip-startup    skip running pre-startup-cmd and service(s) startup.sh
+                        script(s)
+  -p, --skip-process    skip running pre-process-cmd and service(s) process.sh
+                        script(s)
+  -f, --skip-finish     skip running pre-finish-cmd and service(s) finish.sh
+                        script(s)
+  -o {startup,process,finish}, --run-only {startup,process,finish}
+                        run only this type of pre-command and script(s) file(s) and ignore others
+
+commands hooks:
+  -xps COMMAND, --pre-startup-cmd COMMAND
+                        run COMMAND before startup.sh script(s)
+  -xpp COMMAND, --pre-process-cmd COMMAND
+                        run COMMAND before process.sh script(s)
+  -xpf COMMAND, --pre-finish-cmd COMMAND
+                        run COMMAND before finish.sh script(s)
+  -xpe COMMAND, --pre-exit-cmd COMMAND
+                        run COMMAND before container exits
+
+ci/cd:
+  -w, --unsecure-fast-write
+                        disable fsync and friends with eatmydata LD_PRELOAD
+                        library
+
+debugging:
+  -d [EXTRA PACKAGE ...], --debug [EXTRA PACKAGE ...]
+                        set log level to debug and install debug tools (curl
+                        less procps psmisc strace vim) with optional extra
+                        packages passed in argument
+  -k, --no-kill-all-on-exit
+                        don't kill all processes on the system upon exiting
+  -a, --keep-alive      keep alive container after all processes have exited
+
+logging:
+  -j, --logjson         set log format to json
+  -l {none,error,warning,info,debug,trace}, --loglevel {none,error,warning,info,debug,trace}
+                        set log level, default: info
+
+Built with osixia/baseimage (https://github.com/osixia/container-baseimage) 🐳✨🌴
+```
+
+## 🍹 First image in 2 minutes
+Generate single process image templates in the **osixia-baseimage-example** directory
+```
+docker run --rm --volume $(pwd)/osixia-baseimage-example:/container/generator \
+osixia/baseimage:2.0.0 --generate dockerfile
+```
+
+List generated directories and files in **osixia-baseimage-example** directory
+```
+tree -a osixia-baseimage-example
+```
+
+```
+osixia-baseimage-example
+├── Dockerfile
+├── environment
+│   └── .env
+└── services
+    └── service-1
+        ├── finish.sh
+        ├── install.sh
+        ├── process.sh
+        └── startup.sh
+```
+
+Change file ownership to current user
+```
+sudo chown -R ${USER}:${USER} osixia-baseimage-example
+```
+
+Edit the **Dockerfile** to remove examples lines related to packages installation
+```
+vim osixia-baseimage-example/Dockerfile
+```
+
+```
+FROM osixia/baseimage:2.0.0
+
+# Uncomment to add container environment variables used by generator
+# and provide templates to extend your image
+# ARG IMAGE_NAME
+# ARG IMAGE_TAG
+# ENV CONTAINER_IMAGE_NAME=${IMAGE_NAME} \
+#     CONTAINER_IMAGE_TAG=${IMAGE_TAG}
+
+RUN packages-index-update \     <--- Remove this line
+    && packages-install-clean \ <--- Remove this line
+        [...]                   <--- Remove this line
+
+COPY services /container/services
+
+RUN install-services
+
+COPY environment /container/environment/00-default
+```
+
+Build the image **example/my-image:develop** using files in the **osixia-baseimage-example** directory
+```
+docker build --tag example/my-image:develop ./osixia-baseimage-example
+```
+
+Run **example/my-image:develop** image
+```
+docker run example/my-image:develop
+```
+
+```
+*** 2022-10-10T14:39:27.531055 |  INFO   | Container image: osixia/baseimage:2.0.0
+*** 2022-10-10T14:39:27.531082 |  INFO   | CONTAINER_LOG_LEVEL=3 (info) Increase log level to "debug" or "trace" to dump all container environment variables.
+*** 2022-10-10T14:39:27.531094 |  INFO   | CONTAINER_LOG_FORMAT=CONSOLE Run container with command argument --logjson to switch to JSON log format.
+*** 2022-10-10T14:39:27.554786 |  INFO   | Loading environment file /container/environment/00-default/.env ...
+*** 2022-10-10T14:39:27.555319 |  INFO   | Running /container/entrypoint/startup/service-1/run ...
+service-1: Doing some container first start setup ...
+service-1: Doing some others container start setup ...
+service-1: EXAMPLE_ENV_VAR=Hello :) ...
+*** 2022-10-10T14:39:27.562685 |  INFO   | Running /container/entrypoint/process/service-1/run ...
+service-1: Just going to sleep for a long time ...
+
+[press ctrl+c to stop process]
+
+*** 2022-10-10T14:39:29.486287 |  INFO   | Shutting down /container/entrypoint/process/service-1/run (PID 12) ...
+*** 2022-10-10T14:39:29.486510 | WARNING | Container entrypoint init system aborted.
+*** 2022-10-10T14:39:29.486689 |  INFO   | Running /container/entrypoint/finish/service-1/run ...
+service-1: process ended ...
+*** 2022-10-10T14:39:29.490385 |  INFO   | Killing all processes ...
+```
+
+That's it you have a functionnal single process image based on osixia/baseimage.
+
+Next step: [Set the container image name to "example/my-image:develop" instead of "osixia/baseimage:2.0.0".]()
+
+## 📄 Documentation
+
+⚠ 2.0.0 release is out. Check the [1.x.x to 2.0.0 Migration Guide.]()
+
+See full documentation and complete feature list on [osixia/baseimage documentation website.](https://opensource.osixia.net/containers/images/baseimage)
+
+Or for the more adventurous go directly to the [🎨 examples](docs/examples).
+
+## ♥ Contributing
+
+If you find this project useful here's how you can help:
+
+- Send a pull request with new features and bug fixes.
+- Help new users with [issues](https://github.com/osixia/container-baseimage/issues) they may encounter.
+- Support the development of this image and star [this repo][github] and the image [docker hub repository.][docker hub]
+
+## 🔓 License
+
+This project is licensed under the terms of the MIT license. See [LICENSE](LICENSE) file for more information.
+
+## 💥 Changelog
+
+Please refer to: [CHANGELOG.md](CHANGELOG.md)
+
+
+
+
+
+# osixia/light-baseimage ✨🌴
+
+![Docker Pulls](https://img.shields.io/docker/pulls/osixia/light-baseimage.svg?style=flat-square)
+![Docker Stars](https://img.shields.io/docker/stars/osixia/light-baseimage.svg?style=flat-square)
+![Docker Image Size](https://img.shields.io/docker/image-size/osixia/light-baseimage?style=flat-square)
+![Contributors](https://img.shields.io/github/contributors/osixia/docker-light-baseimage?style=flat-square)
+
+A **Debian 11 (Bullseye)** based docker image to build reliable image quickly. This image provide a simple opinionated solution to build multiple or single process image with minimum of layers and an optimized build.
+
+The aims of this image is to be used as a base for your own Docker images. It's base on the awesome work of: [phusion/baseimage-docker](https://github.com/phusion/baseimage-docker)
+
+```
+docker run osixia/light-baseimage:2.0.0 --help
+```
+
+Also available based on Alpine : [Documentation](https://github.com/osixia/docker-light-baseimage/tree/alpine)
+
+```
+docker run osixia/light-baseimage:alpine-2.0.0 --help
+```
+
+
 
 ## Contributing
 
@@ -885,7 +902,7 @@ What it does:
       -f, --skip-finish-files
                             Skip running container finish file(s).
       -o {startup,process,finish}, --run-only {startup,process,finish}
-                            Run only this file type and ignore others.
+                            run only this type of pre-command and script(s) file(s) and ignore others
       --pre-startup-cmd COMMAND
                             Run COMMAND before startup file(s).
       --pre-process-cmd COMMAND

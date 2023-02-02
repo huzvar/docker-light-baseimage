@@ -1,4 +1,4 @@
-package light_baseimage
+package baseimage
 
 import (
     "dagger.io/dagger"
@@ -65,7 +65,7 @@ dagger.#Plan & {
         filesystem: ".": read: contents: dagger.#FS
         network: "unix:///var/run/docker.sock": connect: dagger.#Socket
         env: {
-            IMAGE_NAME: string | *"osixia/light-baseimage"
+            IMAGE_NAME: string | *"osixia/baseimage"
             IMAGE_TAG: string | *"local"
         }
     }
@@ -85,14 +85,14 @@ dagger.#Plan & {
         baseimageTag: "bullseye-slim"
     }
 
-    _alpine315Image: #Image & {
-        path: "./alpine/3.15"
+    _alpine316Image: #Image & {
+        path: "./alpine/3.16"
 
         imageId: _imageId
-        tagSuffixes: ["alpine", "alpine-3", "alpine-3.15"]
+        tagSuffixes: ["alpine", "alpine-3", "alpine-3.16"]
 
         baseimageName: "alpine"
-        baseimageTag: "3.15"
+        baseimageTag: "3.16"
     }
     
     actions: {
@@ -104,9 +104,9 @@ dagger.#Plan & {
                         dockerSocket: client.network."unix:///var/run/docker.sock".connect
                     }
             alpine:
-                "3.15":
+                "3.16":
                     baseimage: #BuildImage & {
-                        image: _alpine315Image
+                        image: _alpine316Image
                         dockerSocket: client.network."unix:///var/run/docker.sock".connect
                     }
         }

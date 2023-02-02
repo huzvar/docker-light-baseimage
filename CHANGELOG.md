@@ -11,8 +11,6 @@
 
 ### Changed
   - Use debian bullseye-slim as baseimage
-  - Now main_command is run even in single process and multiple process images as pre-startup command
-  - Upgrade CFSSL version to 1.6.1
   - Rename environment variable KILL_PROCESS_TIMEOUT and KILL_ALL_PROCESSES_TIMEOUT to CONTAINER_KILL_PROCESS_TIMEOUT and CONTAINER_KILL_ALL_PROCESSES_TIMEOUT
 
 ### Removed
@@ -22,7 +20,7 @@
   - .startup.yaml and .startup.json environment files support (kubernetes initContainers can be used as replacement)
   - complex-bash-env support and associated "#PYTHON2BASH:" and "#JSON2BASH:" tags for environment variables
   - /container/run/environment directory and files, formally used to dump container environment
-  - ssl-tools (a dedicated docker image can be used as replacement)
+  - ssl-tools and cfssl (a dedicated docker image can be used as replacement)
 
 ## [1.3.3] - 2021-03-13
 ### Changed
@@ -203,24 +201,24 @@
 ## 0.1.0 - 2015-07-23
 Initial release
 
-[1.3.3]: https://github.com/osixia/docker-light-baseimage/compare/v1.3.2...v1.3.3
-[1.3.2]: https://github.com/osixia/docker-light-baseimage/compare/v1.3.1...v1.3.2
-[1.3.1]: https://github.com/osixia/docker-light-baseimage/compare/v1.3.0...v1.3.1
-[1.3.0]: https://github.com/osixia/docker-light-baseimage/compare/v1.2.0...v1.3.0
-[1.2.0]: https://github.com/osixia/docker-light-baseimage/compare/v1.1.2...v1.2.0
-[1.1.2]: https://github.com/osixia/docker-light-baseimage/compare/v1.1.1...v1.1.2
-[1.1.1]: https://github.com/osixia/docker-light-baseimage/compare/v1.1.0...v1.1.1
-[1.1.0]: https://github.com/osixia/docker-light-baseimage/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/osixia/docker-light-baseimage/compare/v0.2.2...v1.0.0
-[0.2.6]: https://github.com/osixia/docker-light-baseimage/compare/v0.2.5...v0.2.6
-[0.2.5]: https://github.com/osixia/docker-light-baseimage/compare/v0.2.4...v0.2.5
-[0.2.4]: https://github.com/osixia/docker-light-baseimage/compare/v0.2.3...v0.2.4
-[0.2.3]: https://github.com/osixia/docker-light-baseimage/compare/v0.2.2...v0.2.3
-[0.2.2]: https://github.com/osixia/docker-light-baseimage/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/osixia/docker-light-baseimage/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/osixia/docker-light-baseimage/compare/v0.1.5...v0.2.0
-[0.1.5]: https://github.com/osixia/docker-light-baseimage/compare/v0.1.4...v0.1.5
-[0.1.4]: https://github.com/osixia/docker-light-baseimage/compare/v0.1.3...v0.1.4
-[0.1.3]: https://github.com/osixia/docker-light-baseimage/compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com/osixia/docker-light-baseimage/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/osixia/docker-light-baseimage/compare/v0.1.0...v0.1.1
+[1.3.3]: https://github.com/osixia/container-baseimage/compare/v1.3.2...v1.3.3
+[1.3.2]: https://github.com/osixia/container-baseimage/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/osixia/container-baseimage/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/osixia/container-baseimage/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/osixia/container-baseimage/compare/v1.1.2...v1.2.0
+[1.1.2]: https://github.com/osixia/container-baseimage/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/osixia/container-baseimage/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/osixia/container-baseimage/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/osixia/container-baseimage/compare/v0.2.2...v1.0.0
+[0.2.6]: https://github.com/osixia/container-baseimage/compare/v0.2.5...v0.2.6
+[0.2.5]: https://github.com/osixia/container-baseimage/compare/v0.2.4...v0.2.5
+[0.2.4]: https://github.com/osixia/container-baseimage/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/osixia/container-baseimage/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/osixia/container-baseimage/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/osixia/container-baseimage/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/osixia/container-baseimage/compare/v0.1.5...v0.2.0
+[0.1.5]: https://github.com/osixia/container-baseimage/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/osixia/container-baseimage/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/osixia/container-baseimage/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/osixia/container-baseimage/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/osixia/container-baseimage/compare/v0.1.0...v0.1.1

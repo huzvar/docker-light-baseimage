@@ -1,5 +1,5 @@
 #!/bin/bash -e
-FIRST_START_DONE="${CONTAINER_STATE_DIR}/nginx-first-start-done"
+FIRST_START_DONE="/run/nginx-first-start-done"
 
 # container first start
 if [ ! -e "${FIRST_START_DONE}" ]; then

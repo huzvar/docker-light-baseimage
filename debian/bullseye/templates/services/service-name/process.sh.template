@@ -4,5 +4,5 @@
 # print commands and their arguments as they are executed
 log-helper level eq trace && set -x
 
-echo "${SERVICE_NAME}: Just going to sleep for a long time..."
+echo "${SERVICE_NAME}: Just going to sleep for a long time ..."
 exec sleep infinity

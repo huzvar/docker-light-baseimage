@@ -9,7 +9,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within this docker image,
+If you discover a security vulnerability within this container image,
 please send an email to security@osixia.net.
 
 For minor vulnerabilities feel free to add an issue here on github.
