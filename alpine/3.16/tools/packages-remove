@@ -1,8 +1,10 @@
 #!/bin/bash -e
 log-helper level eq trace && set -x
 
+set -o pipefail
+
 # Usage:
 # packages-remove [package 1] [package 2] ...
 
-apt remove -y --purge "$@"
-apt -qy autoremove
+log-helper info "Remove packages: $*"
+apk del --purge "$@" 2>&1 | log-helper debug

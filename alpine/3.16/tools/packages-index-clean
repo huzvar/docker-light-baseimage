@@ -1,10 +1,10 @@
 #!/bin/bash -e
 log-helper level eq trace && set -x
 
+set -o pipefail
+
 # Usage:
 # packages-index-clean
 
 log-helper info "Clean packages index"
-apt -qy autoremove
-apt clean
-rm -r /var/lib/apt/lists/*
+rm -rf /var/cache/apk/* | log-helper debug

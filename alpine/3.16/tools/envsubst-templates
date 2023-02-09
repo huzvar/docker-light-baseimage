@@ -32,7 +32,7 @@ if [ -z "${FILE_SUFFIX}" ]; then
 	FILE_SUFFIX=${DEFAULT_FILE_SUFFIX}
 fi
 
-log-helper debug "Create ${DEFAULT_FILE_SUFFIX} directory"
+log-helper debug "Create ${OUTPUT_DIR} directory"
 mkdir -p "${OUTPUT_DIR}"
 
 DEFINED_ENVS=$(printf '${%s} ' $(env | cut -d= -f1))
@@ -40,8 +40,8 @@ log-helper debug "Defined environment variables: ${DEFINED_ENVS}"
 
 find "${DIR}" -follow -type f -name "*${FILE_SUFFIX}" -print | while read -r TEMPLATE; do
 	RELATIVE_PATH="${TEMPLATE#$DIR/}"
-	OUTPUT_PATH="$OUTPUT_DIR/${RELATIVE_PATH%$FILE_SUFFIX}"
-	SUBDIR=$(dirname "$RELATIVE_PATH")
+	OUTPUT_PATH="${OUTPUT_DIR}/${RELATIVE_PATH%$FILE_SUFFIX}"
+	SUBDIR=$(dirname "${RELATIVE_PATH}")
 
 	log-helper info "Running envsubst on ${TEMPLATE} output to ${OUTPUT_PATH}"
 	
@@ -52,4 +52,6 @@ find "${DIR}" -follow -type f -name "*${FILE_SUFFIX}" -print | while read -r TEM
 	mkdir -p "${OUTPUT_DIR}/${SUBDIR}"
 
 	envsubst "${DEFINED_ENVS}" < "${TEMPLATE}" > "${OUTPUT_PATH}"
+
+	chmod --reference="${TEMPLATE}" "${OUTPUT_PATH}"
 done

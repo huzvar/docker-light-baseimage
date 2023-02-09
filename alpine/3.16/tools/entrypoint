@@ -51,16 +51,16 @@ ENVIRONMENT_IMAGE_TAG_KEY = "CONTAINER_IMAGE_TAG"
 ENVIRONMENT_FILES_IMPORT_DIR = "/container/environment"
 ENVIRONMENT_FILES_PREFIX = (".env")
 
-TEMPLATES_DIR = "/container/templates"
-
 # Keep sync with values in install-services file.
 ENTRYPOINT_DIR = "/container/entrypoint"
 ENTRYPOINT_STARTUP_DIR = ENTRYPOINT_DIR + "/startup"
 ENTRYPOINT_PROCESS_DIR = ENTRYPOINT_DIR + "/process"
 ENTRYPOINT_FINISH_DIR = ENTRYPOINT_DIR + "/finish"
 
-VAR_DIR = "/container/var"
-VAR_GENERATOR_DIR = VAR_DIR + "/generator"
+ENTRYPOINT_SUBDIRS = [ENTRYPOINT_STARTUP_DIR, ENTRYPOINT_PROCESS_DIR, ENTRYPOINT_FINISH_DIR]
+
+TEMPLATES_DIR = "/container/templates"
+GENERATOR_DIR = "/container/generator"
 
 
 class AlarmException(Exception):
@@ -105,13 +105,6 @@ def trace(message):
         write_log(" TRACE ", message)
 
 
-def debug_env():
-    message = "Environment variables:\n"
-    for name, value in list(os.environ.items()):
-        message += "%s=%s\n" % (name, value)
-    debug(message)
-
-
 def ignore_signals_and_raise_keyboard_interrupt(signame):
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -147,33 +140,43 @@ def xstr(s):
 
 
 def generator(args):
-    if not args.generate and not args.generate_multiprocess and not args.generate_service and not args.generate_service_available:
+    if not args.generate and not args.generate_multiprocess and not args.generate_child and not args.generate_service and not args.generate_service_available:
         return
 
-    if args.generate and args.generate_multiprocess:
-        error("--generate option can't be used with --generate-multiprocess set at the same time.")
-        sys.exit(1)
+    if is_single_process_container() or is_multiprocess_container():
+        if args.generate or args.generate_multiprocess:
+            error("--generate or --generate-multiprocess can't be used on images with existing process, use --generate-child instead.")
+            sys.exit(1)
 
-    if (args.generate or args.generate_multiprocess) and (args.generate_service or args.generate_service_available):
-        error("--generate-service and --generate-service-available options can't be used with --generate or --generate-multiprocess set at the same time.")
+    else:
+        if args.generate_child:
+            error("--generate-child can't be used on images without any existing process, use --generate or --generate-multiprocess instead.")
+            sys.exit(1)
+        
+        if args.generate and args.generate_multiprocess:
+            error("--generate option can't be used with --generate-multiprocess set at the same time.")
+            sys.exit(1)
+
+    if (args.generate or args.generate_multiprocess or args.generate_child) and (args.generate_service or args.generate_service_available):
+        error("--generate-service and --generate-service-available options can't be used with --generate, --generate-multiprocess or --generate-child set at the same time.")
         sys.exit(1)
 
     generator_print_files = False
 
-    if not os.path.isdir(VAR_GENERATOR_DIR):
+    if not os.path.isdir(GENERATOR_DIR):
         generator_print_files = True
 
         warning("Generator directory not found: %s. Generated files will be printed to the console." %
-                VAR_GENERATOR_DIR)
+                GENERATOR_DIR)
         warning("To get generated files directly on your file system mount a host directory to %s." %
-                VAR_GENERATOR_DIR)
-        warning("docker run --rm --volume $(pwd)/example:%s %s %s" % (VAR_GENERATOR_DIR,
+                GENERATOR_DIR)
+        warning("docker run --rm --volume $(pwd)/example:%s %s %s" % (GENERATOR_DIR,
                 get_container_image(), get_generator_command_line_options(args)))
 
         try:
-            os.mkdir(VAR_GENERATOR_DIR)
+            os.mkdir(GENERATOR_DIR)
         except OSError as e:
-            error("Error creating %s directory" % VAR_GENERATOR_DIR)
+            error("Error creating %s directory" % GENERATOR_DIR)
             sys.exit(1)
 
     try:
@@ -182,6 +185,9 @@ def generator(args):
 
         elif args.generate_multiprocess:
             generate_multiprocess(args.generate_multiprocess)
+
+        elif args.generate_child:
+            generate_child(args.generate_child)
 
         if args.generate_service:
             for service in args.generate_service:
@@ -192,19 +198,19 @@ def generator(args):
                 generate_service_available(service_available)
 
     except Exception as e:
-            error("Error : %s" % e)
+            error(e)
             sys.exit(1)
 
     if generator_print_files:
         separator = "--------------------------------------------------------------------------------"
 
-        for subdir, _, files in os.walk(VAR_GENERATOR_DIR):
+        for subdir, _, files in os.walk(GENERATOR_DIR):
             for file in files:
                 file_path = os.path.join(subdir, file)
 
                 print(separator)
-                print(file_path.replace(VAR_GENERATOR_DIR, ""))
-                print(separator)
+                print("file: %s" % file_path.replace(GENERATOR_DIR, ""))
+                print("content:\n")
 
                 with open(file_path, "r") as f:
                     print(f.read())
@@ -220,6 +226,9 @@ def get_generator_command_line_options(args):
 
     if(args.generate_multiprocess):
         options += "--generate-multiprocess %s " % args.generate_multiprocess
+
+    if(args.generate_child):
+        options += "--generate-child %s " % args.generate_child
 
     if args.generate_service:
         for service in args.generate_service:
@@ -246,16 +255,16 @@ def generate_envsubst_templates(source, dest=None, environ=None):
         subprocess_environ = subprocess_environ | environ
 
     if dest:
-        dest = os.path.join(VAR_GENERATOR_DIR, dest)
+        dest = os.path.join(GENERATOR_DIR, dest)
     else:
-        dest = VAR_GENERATOR_DIR
+        dest = GENERATOR_DIR
 
     subprocess.run("envsubst-templates %s %s" %
-                   (source, dest), shell=True, env=subprocess_environ)
+                   (source, dest), shell=True, check=True, env=subprocess_environ)
 
 
 # generate single process image files
-def generate(option, service_name="my-service"):
+def generate(option, service_name="service-1"):
     debug("Generate single process templates")
     with tempfile.TemporaryDirectory() as tmpdir:
         trace("Use temporary directory: %s" % tmpdir)
@@ -265,10 +274,10 @@ def generate(option, service_name="my-service"):
                         "Dockerfile.template"), tmpdir)
         else:
             shutil.copy(os.path.join(TEMPLATES_DIR,
-                        "my_image.cue.template"), tmpdir)
+                        "image_name.cue.template"), tmpdir)
 
         shutil.copytree(os.path.join(TEMPLATES_DIR, "environment"),
-                        os.path.join(VAR_GENERATOR_DIR, "environment"))
+                        os.path.join(GENERATOR_DIR, "environment"))
 
         generate_envsubst_templates(tmpdir)
 
@@ -280,6 +289,12 @@ def generate_multiprocess(option):
     generate(option, "service-1")
     generate_service("service-2", "services")
 
+    files_to_remove = [os.path.join(GENERATOR_DIR, "Dockerfile"), os.path.join(GENERATOR_DIR, "image_name.cue")]
+    for file in files_to_remove:
+        if os.path.isfile(file):
+            debug("Remove single process generated files: %s" % file)
+            os.remove(file)
+
     debug("Generate multiprocess templates")
     with tempfile.TemporaryDirectory() as tmpdir:
         trace("Use temporary directory: %s" % tmpdir)
@@ -288,11 +303,17 @@ def generate_multiprocess(option):
             shutil.copy(os.path.join(TEMPLATES_DIR, "Dockerfile.multiprocess.template"), os.path.join(
                 tmpdir, "Dockerfile.template"))
         else:
-            shutil.copy(os.path.join(TEMPLATES_DIR, "my_image.cue.multiprocess.template"), os.path.join(
-                tmpdir, "my_image.cue.template"))
+            shutil.copy(os.path.join(TEMPLATES_DIR, "image_name.cue.multiprocess.template"), os.path.join(
+                tmpdir, "image_name.cue.template"))
 
         generate_envsubst_templates(tmpdir)
 
+
+def generate_child(option):
+    if is_single_process_container():
+        generate_multiprocess(option)
+    else:
+        generate(option, "service-1")
 
 def generate_service(name, in_dir=None):
     debug("Generate service templates: %s" % name)
@@ -332,7 +353,7 @@ def import_env_files():
 
                 filepath = os.path.join(subdir, file)
 
-                info("Loading environment file %s..." % filepath)
+                info("Loading environment file %s ..." % filepath)
                 load_dotenv(filepath, override=True)
                 set_env(env_backup)
 
@@ -344,7 +365,7 @@ def set_env(env):
 
 
 def set_log_env():
-    trace("Setting container logs environment variables...")
+    trace("Setting container logs environment variables ...")
 
     log_level_message = "Increase log level to \"debug\" or \"trace\" to dump all container environment variables."
     if log_level >= LOG_LEVEL_DEBUG:
@@ -365,8 +386,32 @@ def set_log_env():
     os.environ[ENVIRONMENT_LOG_FORMAT_KEY] = log_format
 
 
+def dump_env():
+    message = "Environment variables:\n"
+    for name, value in list(os.environ.items()):
+        message += "%s=%s\n" % (name, value)
+    return message
+
+
 def get_container_image():
-    return "%s:%s" % (os.environ.get(ENVIRONMENT_IMAGE_NAME_KEY, ""), os.environ.get(ENVIRONMENT_IMAGE_TAG_KEY, ""))
+    return "%s:%s" % (os.environ.get(ENVIRONMENT_IMAGE_NAME_KEY, "undefined"), os.environ.get(ENVIRONMENT_IMAGE_TAG_KEY, "undefined"))
+
+
+def process_exists(service_name):
+    for entrypoint_subdir in ENTRYPOINT_SUBDIRS:
+        process = os.path.join(entrypoint_subdir, service_name, "run")
+
+        if os.path.exists(process):
+            return True
+
+    return False
+
+
+def process_list():
+    services = []
+    for entrypoint_subdir in ENTRYPOINT_SUBDIRS:
+        services += listdir(entrypoint_subdir)
+    return list(dict.fromkeys(services))
 
 
 def is_multiprocess_container():
@@ -375,15 +420,6 @@ def is_multiprocess_container():
 
 def is_single_process_container():
     return len(listdir(ENTRYPOINT_PROCESS_DIR)) == 1
-
-
-def get_container_process():
-    for p in listdir(ENTRYPOINT_PROCESS_DIR):
-        return os.path.join(ENTRYPOINT_PROCESS_DIR, p, "run")
-
-
-def is_runit_installed():
-    return os.path.exists("/usr/bin/sv")
 
 
 # Waits for the child process with the given PID, while at the same time
@@ -423,7 +459,7 @@ def waitpid_reap_other_children(pid):
 
 
 def stop_child_process(name, pid, signo=signal.SIGTERM, time_limit=KILL_PROCESS_TIMEOUT):
-    info("Shutting down %s (PID %d)..." % (name, pid))
+    info("Shutting down %s (PID %d) ..." % (name, pid))
     try:
         os.kill(pid, signo)
     except OSError:
@@ -449,26 +485,8 @@ def stop_child_process(name, pid, signo=signal.SIGTERM, time_limit=KILL_PROCESS_
         signal.alarm(0)
 
 
-def run_command_killable(command):
-    status = None
-    pid = os.spawnvp(os.P_NOWAIT, command[0], command)
-    try:
-        status = waitpid_reap_other_children(pid)
-    except BaseException:
-        warning("An error occurred. Aborting.")
-        stop_child_process(command[0], pid)
-        raise
-    if status != 0:
-        if status is None:
-            error("%s exited with unknown status\n" % command[0])
-        else:
-            error("%s failed with status %d\n" %
-                  (command[0], os.WEXITSTATUS(status)))
-        sys.exit(1)
-
-
 def kill_all_processes(time_limit):
-    info("Killing all processes...")
+    info("Killing all processes ...")
     try:
         os.kill(-1, signal.SIGTERM)
     except OSError:
@@ -495,90 +513,67 @@ def kill_all_processes(time_limit):
         signal.alarm(0)
 
 
-def run_script_files(dir):
+def run_scripts(dir, run_only_service = ""):
     for name in listdir(dir):
-        filename = os.path.join(dir, name)
+        if run_only_service and name != run_only_service:
+            continue
+
+        dirname = os.path.join(dir, name)
+        filename = os.path.join(dirname, 'run')
         if is_exe(filename):
-            info("Running %s..." % filename)
-            run_command_killable([filename])
+            run_command([filename])
 
 
-def wait_for_process_or_interrupt(pid):
-    status = waitpid_reap_other_children(pid)
-    return (True, status)
+def run_background_command(command, display_name = None):
+    if not display_name:
+        display_name = " ".join(command)
 
-
-def run_process(args, background_process_name, background_process_command):
-    background_process_pid = run_background_process(
-        background_process_name, background_process_command)
-    background_process_exited = False
-    exit_status = None
-
-    if len(args.main_command) == 0:
-        background_process_exited, exit_status = wait_background_process(
-            background_process_name, background_process_pid)
-    else:
-        exit_status = run_foreground_process(args.main_command)
-
-    return background_process_pid, background_process_exited, exit_status
-
-
-def run_background_process(name, command):
-    info("Running %s..." % name)
+    info("Running %s ..." % display_name)
     pid = os.spawnvp(os.P_NOWAIT, command[0], command)
-    debug("%s started as PID %d" % (name, pid))
-    return pid
+    debug("%s started as PID %d" % (display_name, pid))
+    return display_name, pid
 
 
 def wait_background_process(name, pid):
-    exit_code = None
-    exit_status = None
-    process_exited = False
+    exit_status = waitpid_reap_other_children(pid)
 
-    process_exited, exit_code = wait_for_process_or_interrupt(pid)
-    if process_exited:
-        if exit_code is None:
-            info("%s exited with unknown status" % name)
-            exit_status = 1
+    if exit_status is None:
+        warning("%s exited with unknown status" % name)
+        return 1
+    else:
+        log_message = "%s exited with status %d"
+        if exit_status != 0:
+            warning(log_message % (name, exit_status))
         else:
-            exit_status = os.WEXITSTATUS(exit_code)
-            info("%s exited with status %d" % (name, exit_status))
-    return (process_exited, exit_status)
+            debug(log_message % (name, exit_status))
+        return os.WEXITSTATUS(exit_status)
 
 
-def run_foreground_process(command):
-    exit_code = None
+def run_command(command):
     exit_status = None
 
-    info("Running %s..." % " ".join(command))
-    pid = os.spawnvp(os.P_NOWAIT, command[0], command)
+    name, pid = run_background_command(command)
     try:
-        exit_code = waitpid_reap_other_children(pid)
-        if exit_code is None:
-            info("%s exited with unknown status." % command[0])
-            exit_status = 1
-        else:
-            exit_status = os.WEXITSTATUS(exit_code)
-            info("%s exited with status %d." % (command[0], exit_status))
+        exit_status = wait_background_process(name, pid)
     except KeyboardInterrupt:
-        stop_child_process(command[0], pid)
+        stop_child_process(name, pid)
         raise
     except BaseException:
         error("An error occurred. Aborting.")
-        stop_child_process(command[0], pid)
+        stop_child_process(name, pid)
         raise
 
     return exit_status
 
 
 def shutdown_runit_services():
-    debug("Begin shutting down runit services...")
+    debug("Begin shutting down services ...")
     subprocess.run("/usr/bin/sv -w %d force-stop %s/* > /dev/null" %
                    (KILL_PROCESS_TIMEOUT, ENTRYPOINT_PROCESS_DIR), shell=True)
 
 
-def wait_for_runit_services():
-    debug("Waiting for runit services to exit...")
+def wait_runit_services_shutdown():
+    info("Waiting for services to exit ...")
     done = False
     while not done:
         done = subprocess.run("/usr/bin/sv status %s/* | grep -q '^run:'" %
@@ -588,61 +583,101 @@ def wait_for_runit_services():
             shutdown_runit_services()
 
 
-def run_multiprocess_container(args):
-    if not is_runit_installed():
-        error("Runit is not installed and this is a multiprocess container.")
-        return
-
+def run_main_command_or_wait_background_process(main_command, background_process_name, background_process_pid):
     background_process_exited = False
-    background_process_pid = None
+    exit_status = None
+    
+    if len(main_command) == 0:
+        exit_status = wait_background_process(
+            background_process_name, background_process_pid)
+        background_process_exited = True
+    else:
+        exit_status = run_command(args.main_command)
+
+    return background_process_exited, exit_status
+
+
+def run_multiprocess_container(main_command, restart_processes):
+    if not os.path.exists("/usr/bin/sv"):
+        error("Runit is not installed and this is a multiprocess container.")
+        sys.exit(1)
+
+    runit_process_exited = False
+    runit_process_name = None
+    runit_process_pid = None
+    exit_status = None
 
     try:
-        runit_command = ["/usr/bin/runsvdir", "-P", ENTRYPOINT_PROCESS_DIR]
-        background_process_pid, background_process_exited, exit_status = run_process(
-            args, "runit daemon", runit_command)
+        runit_process_name, runit_process_pid = run_background_command(["/usr/bin/runsvdir", "-P", ENTRYPOINT_PROCESS_DIR])
 
-        sys.exit(exit_status)
+        if not restart_processes:
+            info("Waiting services to start ...")
+            done = False
+            while not done:
+                done = subprocess.run("/usr/bin/sv status %s/* | grep -q -v '^run:'" %
+                                    ENTRYPOINT_PROCESS_DIR, shell=True).returncode != 0
+
+            info("Modifying settings to not restart terminated services ...")
+            subprocess.run("/usr/bin/sv once %s/*" %
+                              ENTRYPOINT_PROCESS_DIR, shell=True, check=True)
+
+        runit_process_exited, exit_status = run_main_command_or_wait_background_process(main_command, runit_process_name, runit_process_pid)
+
     finally:
         shutdown_runit_services()
-        if not background_process_exited:
-            stop_child_process("runit daemon", background_process_pid)
-        wait_for_runit_services()
 
+        if not runit_process_exited:
+            stop_child_process(runit_process_name, runit_process_pid)
 
-def run_single_process_container(args):
-    background_process_exited = False
-    background_process_pid = None
+        wait_runit_services_shutdown()
 
-    try:
-        container_process = get_container_process()
-        background_process_pid, background_process_exited, exit_status = run_process(
-            args, container_process, [container_process])
-
-        sys.exit(exit_status)
-    finally:
-        if not background_process_exited:
-            stop_child_process(container_process, background_process_pid)
-
-
-def run_no_process_container(args):
-    if len(args.main_command) == 0:
-        args.main_command = ["bash"]  # Run bash by default.
-
-    exit_status = run_foreground_process(args.main_command)
     sys.exit(exit_status)
 
 
-def run_cmds(cmds, when):
-    if not cmds:
+def run_single_process_container(main_command, service = ""):
+    container_process_exited = False
+    container_process_name = None
+    container_process_pid = None
+    exit_status = None
+
+    try:
+        if not service:
+            # If we are here ENTRYPOINT_PROCESS_DIR should have only one subdirectory.
+            for s in listdir(ENTRYPOINT_PROCESS_DIR):
+                service = s
+
+        container_process = os.path.join(ENTRYPOINT_PROCESS_DIR, service, "run")
+        container_process_name, container_process_pid = run_background_command([container_process])
+
+        container_process_exited, exit_status = run_main_command_or_wait_background_process(main_command, container_process_name, container_process_pid)
+
+    finally:
+        if not container_process_exited:
+            stop_child_process(container_process_name, container_process_pid)
+
+    sys.exit(exit_status)
+
+
+def run_no_process_container(main_command):
+    if len(main_command) == 0:
+        main_command = ["bash"]  # Run bash by default.
+
+    exit_status = run_command(main_command)
+    sys.exit(exit_status)
+
+
+def run_lifecycle_commands(commands, lifecycle):
+    if not commands:
         return
 
-    debug("Run pre-%s commands..." % when)
-    for cmd in cmds:
-        info("Running %s... " % cmd)
-        run_command_killable(shlex.split(cmd))
+    for command in commands:
+        info("Running pre-%s command %s ... " % (lifecycle, command))
+        run_command(shlex.split(command))
 
 
 def main(args):
+    info("Container image: %s" % get_container_image())
+
     set_log_env()
 
     if args.unsecure_fast_write:
@@ -651,7 +686,7 @@ def main(args):
 
     if args.debug is not None:
         subprocess.run("/container/tools/install-debug-tools %s" %
-                       " ".join(args.debug), shell=True)
+                       " ".join(args.debug), shell=True, check=True)
 
     try:
         debug(subprocess.run("/container/tools/install-services",
@@ -662,43 +697,61 @@ def main(args):
     if not args.skip_env_files:
         import_env_files()
 
-    if log_level >= LOG_LEVEL_DEBUG:
-        debug_env()
+    debug(dump_env())
+
+    if args.run_only_service:
+        info("Going to run only %s service" % args.run_only_service)
+
+        if not process_exists(args.run_only_service):
+            error("Service %s not found.\nAvailable service(s): %s" % (args.run_only_service, ", ".join(process_list())))
+            sys.exit(1)
 
     if not args.skip_startup:
-        run_cmds(args.pre_startup_cmds, "startup")
-        run_script_files(ENTRYPOINT_STARTUP_DIR)
+        run_lifecycle_commands(args.pre_startup_cmds, "startup")
+        run_scripts(ENTRYPOINT_STARTUP_DIR, args.run_only_service)
 
     if not args.skip_process:
-        run_cmds(args.pre_process_cmds, "process")
+        run_lifecycle_commands(args.pre_process_cmds, "process")
 
-        if is_single_process_container():
-            run_single_process_container(args)
+        if is_single_process_container() or args.run_only_service:
+            run_single_process_container(args.main_command, args.run_only_service)
         elif is_multiprocess_container():
-            run_multiprocess_container(args)
+            run_multiprocess_container(args.main_command, args.restart_processes)
         else:
-            run_no_process_container(args)
+            run_no_process_container(args.main_command)
 
 
 # Command line options.
-parser = argparse.ArgumentParser(prog="", description="container image: %s" % get_container_image(
-), epilog="Built with osixia/light-baseimage (https://github.com/osixia/docker-light-baseimage) 🐳✨🌴")
+parser = argparse.ArgumentParser(prog="", description="Container image: %s" % get_container_image(
+), epilog="Built with osixia/baseimage (https://github.com/osixia/container-baseimage) 🐳✨🌴")
 
-parser.add_argument("main_command", metavar="MAIN_COMMAND", type=str, nargs="*",
+parser.add_argument(metavar="MAIN_COMMAND", dest="main_command", nargs="*",
                     help="the main command to run in addition of container processes, default: /bin/bash if the container have no process, none otherwise")
 
 parser.add_argument("-v", "--version", action='version',
                     version=get_container_image(), help="print container image version")
 
 generator_group = parser.add_argument_group("generator")
-generator_group.add_argument("-gen", "--generate", type=str, choices=["dockerfile", "dagger.io"], dest="generate",
-                             help="generate base templates for single process image")
-generator_group.add_argument("-gmu", "--generate-multiprocess", type=str, choices=["dockerfile", "dagger.io"], dest="generate_multiprocess",
-                             help="generate base templates for multiprocess image")
-generator_group.add_argument("-gse", "--generate-service", metavar="NAME", dest="generate_service", action="append",
-                             help="generate NAME service templates")
-generator_group.add_argument("-gsa", "--generate-service-available", metavar="NAME", dest="generate_service_available", action="append",
-                             help="generate NAME service available templates")
+if not is_single_process_container() and not is_multiprocess_container():
+    generate_help = "generate base templates for single process image, default: dockerfile"
+    generate_multiprocess_help = "generate base templates for multiprocess image, default: dockerfile"
+    generate_child_help = help=argparse.SUPPRESS
+else:
+    generate_help = help=argparse.SUPPRESS
+    generate_multiprocess_help = help=argparse.SUPPRESS
+    generate_child_help = "generate child image templates, default: dockerfile"
+
+generator_group.add_argument("-gen", "--generate", choices=["dockerfile", "dagger.io"], nargs='?', const="dockerfile", dest="generate",
+                            help=generate_help)
+generator_group.add_argument("-gmu", "--generate-multiprocess", choices=["dockerfile", "dagger.io"], nargs='?', const="dockerfile", dest="generate_multiprocess",
+                            help=generate_multiprocess_help)
+generator_group.add_argument("-gch", "--generate-child", choices=["dockerfile", "dagger.io"], nargs='?', const="dockerfile", dest="generate_child",
+                        help=generate_child_help)
+
+generator_group.add_argument("-gse", "--generate-service", metavar="SERVICE", nargs='?', const="service-1", dest="generate_service", action="append",
+                             help="generate service templates with name passed as argument, default: service-1")
+generator_group.add_argument("-gsa", "--generate-service-available", metavar="SERVICE", nargs='?', const="service-1", dest="generate_service_available", action="append",
+                             help="generate service available templates with name passed as argument, default: service-1")
 
 environment_group = parser.add_argument_group("environment variables")
 environment_group.add_argument("-e", "--skip-env-files", dest="skip_env_files",
@@ -715,18 +768,31 @@ lifecycle_group.add_argument("-p", "--skip-process", dest="skip_process",
 lifecycle_group.add_argument("-f", "--skip-finish", dest="skip_finish",
                              action="store_true",
                              help="skip running pre-finish-cmd and service(s) finish.sh script(s)")
-lifecycle_group.add_argument("-o", "--run-only", type=str, choices=["startup", "process", "finish"], dest="run_only",
-                             help="run only this file type and ignore others")
+lifecycle_group.add_argument("-c", "--run-only-lifecycle", choices=["startup", "process", "finish"], dest="run_only_lifecycle",
+                             help="run only one lifecycle type of pre-command and script(s) file(s) and ignore others")
 
 commands_group = parser.add_argument_group("commands hooks")
 commands_group.add_argument("-xps", "--pre-startup-cmd", metavar="COMMAND", dest="pre_startup_cmds", action="append",
-                            help="run COMMAND before startup file(s)")
+                            help="run command passed as argument before startup.sh script(s)")
 commands_group.add_argument("-xpp", "--pre-process-cmd", metavar="COMMAND", dest="pre_process_cmds", action="append",
-                            help="run COMMAND before process file(s)")
+                            help="run command passed as argument before process.sh script(s)")
 commands_group.add_argument("-xpf", "--pre-finish-cmd", metavar="COMMAND", dest="pre_finish_cmds", action="append",
-                            help="run COMMAND before finish file(s)")
+                            help="run command passed as argument before finish.sh script(s)")
 commands_group.add_argument("-xpe", "--pre-exit-cmd", metavar="COMMAND", dest="pre_exit_cmds", action="append",
-                            help="run COMMAND before container exits")
+                            help="run command passed as argument before container exits")
+
+process_group = parser.add_argument_group("process execution")
+process_group.add_argument("-a", "--keep-alive", dest="keep_alive",
+                         action="store_true",
+                         help="keep alive container after all processes have exited")
+process_group.add_argument("-k", "--no-kill-all-on-exit", dest="kill_all_on_exit",
+                         action="store_false",
+                         help="don't kill all processes on the system upon exiting")
+process_group.add_argument("-r", "--no-restart-processes", dest="restart_processes",
+                         action="store_false",
+                         help="don't automatically restart failed services process.sh scripts (multiprocess images only)")
+process_group.add_argument("-x", "--run-only-service", metavar="SERVICE", dest="run_only_service",
+                             help="run only service passed as argument and ignore others (multiprocess images only)")
 
 ci_cd_group = parser.add_argument_group("ci/cd")
 ci_cd_group.add_argument("-w", "--unsecure-fast-write", dest="unsecure_fast_write",
@@ -734,20 +800,14 @@ ci_cd_group.add_argument("-w", "--unsecure-fast-write", dest="unsecure_fast_writ
                          help="disable fsync and friends with eatmydata LD_PRELOAD library")
 
 debug_group = parser.add_argument_group("debugging")
-debug_group.add_argument("-d", "--debug", dest="debug", nargs="*", metavar="EXTRA PACKAGE",
-                         help="set log level to debug and install debug tools (curl less procps psmisc strace vim) with optional extra packages passed in argument")
-debug_group.add_argument("-k", "--no-kill-all-on-exit", dest="kill_all_on_exit",
-                         action="store_false",
-                         help="don't kill all processes on the system upon exiting")
-debug_group.add_argument("-a", "--keep-alive", dest="keep_alive",
-                         action="store_true",
-                         help="keep alive container after all processes have exited")
+debug_group.add_argument("-d", "--debug",  metavar="EXTRA PACKAGE", dest="debug", nargs="*",
+                         help="set log level to debug and install debug tools (curl less procps psmisc strace vim) with optional extra packages passed as argument")
 
 logs_group = parser.add_argument_group("logging")
 logs_group.add_argument("-j", "--logjson", dest="log_json",
                         action="store_true",
                         help="set log format to json")
-logs_group.add_argument("-l", "--loglevel", type=str, choices=log_level_switcher.keys(), dest="log_level", default=log_level_switcher_inv.get(log_level),
+logs_group.add_argument("-l", "--loglevel", choices=log_level_switcher.keys(), dest="log_level", default=log_level_switcher_inv.get(log_level),
                         help="set log level, default: %s" % log_level_switcher_inv.get(log_level))
 
 args = parser.parse_args()
@@ -764,27 +824,31 @@ log_json = args.log_json
 # so container environment variables are not replaced by envsubst-templates
 generator(args)
 
-# Validate and set run-only options.
-if args.run_only is not None:
-    if args.run_only == "startup" and args.skip_startup:
-        error("When '--run-only startup' is set --skip-startup can't be set.")
+# run only service is only available for single process images
+if args.run_only_service and is_single_process_container():
+    args.run_only_service = ""
+
+# Validate and set run-only-lifecycle options.
+if args.run_only_lifecycle is not None:
+    if args.run_only_lifecycle == "startup" and args.skip_startup:
+        error("When '--run-only-lifecycle startup' is set --skip-startup can't be set.")
         sys.exit(1)
 
-    elif args.run_only == "process" and args.skip_startup:
-        error("When '--run-only process' is set --skip-process can't be set.")
+    elif args.run_only_lifecycle == "process" and args.skip_startup:
+        error("When '--run-only-lifecycle process' is set --skip-process can't be set.")
         sys.exit(1)
 
-    elif args.run_only == "finish" and args.skip_startup:
-        error("When '--run-only finish' is set --skip-finish can't be set.")
+    elif args.run_only_lifecycle == "finish" and args.skip_startup:
+        error("When '--run-only-lifecycle finish' is set --skip-finish can't be set.")
         sys.exit(1)
 
-    if args.run_only == "startup":
+    if args.run_only_lifecycle == "startup":
         args.skip_process = True
         args.skip_finish = True
-    elif args.run_only == "process":
+    elif args.run_only_lifecycle == "process":
         args.skip_startup = True
         args.skip_finish = True
-    elif args.run_only == "finish":
+    elif args.run_only_lifecycle == "finish":
         args.skip_startup = True
         args.skip_process = True
 
@@ -804,22 +868,22 @@ except SystemExit as e:
     exit_code = e.code
 
 except KeyboardInterrupt:
-    warning("Init system aborted.")
+    warning("Container entrypoint init system aborted.")
     exit(2)
 
 finally:
     if not args.skip_finish:
-        run_cmds(args.pre_finish_cmds, "finish")
-        run_script_files(ENTRYPOINT_FINISH_DIR)
+        run_lifecycle_commands(args.pre_finish_cmds, "finish")
+        run_scripts(ENTRYPOINT_FINISH_DIR, args.run_only_service)
 
     if args.kill_all_on_exit:
         kill_all_processes(KILL_ALL_PROCESSES_TIMEOUT)
 
-    run_cmds(args.pre_exit_cmds, "exit")
+    run_lifecycle_commands(args.pre_exit_cmds, "exit")
 
     if args.keep_alive:
         try:
-            info("All processes have exited, keep container alive...")
+            info("All processes have exited, keep container alive ...")
             while True:
                 time.sleep(60)
                 pass
